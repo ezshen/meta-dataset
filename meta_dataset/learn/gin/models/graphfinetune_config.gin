@@ -1,0 +1,16 @@
+include 'meta_dataset/learn/gin/models/baseline_config.gin'
+
+LearnerConfig.train_learner = 'GraphFinetune'
+LearnerConfig.eval_learner = 'GraphFinetune'
+
+GraphFinetuneLearner.num_nodes = 264
+GraphFinetuneLearner.max_ancestors = 3
+
+weight_decay = 1e-4
+GraphFinetuneLearner.weight_decay = %weight_decay
+GraphFinetuneLearner.num_finetune_steps = 5
+GraphFinetuneLearner.finetune_lr = 1e-4
+GraphFinetuneLearner.finetune_all_layers = False
+GraphFinetuneLearner.finetune_with_adam = False
+GraphFinetuneLearner.proto_init = False
+GraphFinetuneLearner.ancestors_filepath = None

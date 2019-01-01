@@ -445,6 +445,22 @@ def encode_image(img, image_format):
   img_bytes = buf.getvalue()
   buf.close()
   return img_bytes
+
+def convert_ancestors(ancestors, num_classes):
+  """Map from synset to ancestor ids from (num_classes, num_classes + num_ancestors)"""
+  ancestor_label = num_classes
+  synset_to_label = {}
+  ancestor_labels = {}
+  for class_label, synsets in enumerate(ancestors.values()):
+    labels = []
+    for synset in synsets:
+      if synset not in synset_to_label.keys():
+        synset_to_label[synset] = ancestor_label
+        ancestor_label += 1
+      labels.append(synset_to_label[synset])
+    ancestor_labels[class_label] = labels
+  return ancestor_labels
+
 class DatasetConverter(object):
   """Converts a dataset to the format required to integrate it in the benchmark.
 
@@ -1515,7 +1531,10 @@ class ImageNetConverter(DatasetConverter):
     specification = imagenet_specification.create_imagenet_specification(
         learning_spec.Split, self.files_to_skip,
         ilsvrc_2012_num_leaf_images_path)
-    split_subgraphs, images_per_class, _, _, _, _ = specification
+    split_subgraphs, images_per_class, graph_nodes, _, _, _ = specification
+
+    # Create a dict mapping each leaf node to its reachable ancestors.
+    self.ancestors = imagenet_specification.get_ordered_ancestors(graph_nodes)
 
     # Maps each class id to the name of its class.
     self.class_names = {}
@@ -1551,6 +1570,16 @@ class ImageNetConverter(DatasetConverter):
     assert set_of_directories == set(all_synset_ids), (
         'self.data_root should contain a directory whose name is the WordNet '
         "id of each synset that is a leaf of any split's subgraph.")
+
+    # Create mapping from leaf nodes to internal node ancestor synsets
+    ancestors = {node.wn_id: [a.wn_id for a in ancestors_]for node, ancestors_ in self.ancestors.items()}
+    with tf.io.gfile.GFile(os.path.join(self.records_path, 'ancestors_synsets.json'), 'w') as f:
+      json.dump(ancestors, f)
+
+    ancestor_labels = convert_ancestors(ancestors, len(all_synset_ids))
+
+    with tf.io.gfile.GFile(os.path.join(self.records_path, 'ancestors.json'), 'w') as f:
+      json.dump(ancestor_labels, f)
 
     # By construction of all_synset_ids, we are guaranteed to get train synsets
     # before validation synsets, and validation synsets before test synsets.
@@ -1735,6 +1764,7 @@ class MiniImageNetConverter(DatasetConverter):
     self.classes_per_split[learning_spec.Split.VALID] = len(valid_classes)
     self.classes_per_split[learning_spec.Split.TEST] = len(test_classes)
 
+    all_names = []
     for classes, split in zip([train_classes, valid_classes, test_classes],
                               ['train', 'val', 'test']):
       path = os.path.join(self.data_root,
@@ -1743,6 +1773,8 @@ class MiniImageNetConverter(DatasetConverter):
         data = pkl.load(f)
       # We sort class names to make the dataset creation deterministic
       names = sorted(data['class_dict'].keys())
+      all_names.extend(names)
+
       for class_id, class_name in zip(classes, names):
         logging.info('Creating record class %d', class_id)
         class_records_path = os.path.join(self.records_path,
@@ -1759,3 +1791,13 @@ class MiniImageNetConverter(DatasetConverter):
           buf.seek(0)
           write_example(buf.getvalue(), class_id, writer)
         writer.close()
+
+    # use full imagenet ancestor synset mapping
+    with tf.io.gfile.GFile(os.path.join(self.records_path, 'imagenet_ancestors_synsets.json')) as f:
+      imagenet_ancestors = json.load(f)
+    ancestors = {n:imagenet_ancestors[n] for n in all_names}
+    ancestors_labels = convert_ancestors(ancestors, len(all_names))
+    with tf.io.gfile.GFile(os.path.join(self.records_path, 'ancestors_synsets.json'), 'w') as f:
+      json.dump(ancestors, f)
+    with tf.io.gfile.GFile(os.path.join(self.records_path, 'ancestors.json'), 'w') as f:
+      json.dump(ancestors_labels, f)

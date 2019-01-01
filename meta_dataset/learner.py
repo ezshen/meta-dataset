@@ -28,6 +28,8 @@ import six
 from six.moves import range
 from six.moves import zip
 import tensorflow as tf
+import os
+import json
 
 MAX_WAY = 50  # The maximum number of classes we will see in any batch.
 
@@ -1027,7 +1029,6 @@ def gradient_descent_step(loss,
                           get_update_ops=True):
   """Returns the updated vars after one step of gradient descent."""
   grads = tf.gradients(loss, variables)
-
   if stop_grads:
     grads = [tf.stop_gradient(dv) for dv in grads]
 
@@ -1797,13 +1798,14 @@ class BaselineFinetuneLearner(BaselineLearner):
             print_op = tf.no_op()
             if self.debug_log:
               print_op = tf.print([
-                  'step: %d' % i, vars_to_finetune[0][0, 0], 'loss:',
+                  'step: %d' % i, vars_to_finetune[0][0, 0],
+                  # 'bias:', node_bias,
+                  'loss:',
                   finetune_loss, 'accuracy:',
                   self._compute_accuracy(logits, self.data.train_labels),
                   'test accuracy:',
-                  self._compute_accuracy(test_logits, self.data.test_labels)
+                  self._compute_accuracy(test_logits, self.data.test_labels),
               ])
-
             with tf.control_dependencies([print_op]):
               # Get the operation for finetuning.
               # (The logits and loss are returned just for printing).

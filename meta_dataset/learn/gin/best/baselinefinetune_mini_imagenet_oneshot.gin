@@ -1,4 +1,4 @@
-include 'meta_dataset/learn/gin/setups/mini_imagenet_five_way_five_shot.gin'
+include 'meta_dataset/learn/gin/setups/mini_imagenet.gin'
 EpisodeDescriptionConfig.num_support = 1  # Change 5-shot to 1-shot.
 include 'meta_dataset/learn/gin/models/baselinefinetune_config.gin'
 
@@ -12,3 +12,5 @@ BaselineFinetuneLearner.finetune_lr = 0.01
 BaselineFinetuneLearner.finetune_with_adam = False
 BaselineLearner.use_weight_norm = False
 BaselineFinetuneLearner.finetune_all_layers = False
+
+BaselineFinetuneLearner.debug_log = True

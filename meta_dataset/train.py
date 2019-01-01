@@ -91,7 +91,7 @@ tf.flags.DEFINE_enum(
 
 tf.flags.DEFINE_multi_enum(
     'omit_from_saving_and_reloading',
-    ['num_left_in_epoch', 'finetune', 'linear_classifier', 'adam_opt', 'fc'], [
+    ['num_left_in_epoch', 'finetune', 'linear_classifier', 'adam_opt'], [
         'num_left_in_epoch', 'finetune', 'linear_classifier', 'adam_opt', 'fc',
         'weight_copy'
     ],

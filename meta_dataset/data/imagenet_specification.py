@@ -99,6 +99,18 @@ def get_node_ancestors(synset):
     to_visit = to_visit | set(ancestor.parents) - visited
   return ancestors
 
+def get_ordered_ancestors(synsets):
+  """Create a dict mapping from synset to ordered ancestor paths."""
+  leaves = get_leaves(synsets)
+
+  all_ancestors = dict()
+  for s in leaves:
+    paths = get_upward_paths_from(s)
+    if paths:
+      path = paths[np.argmax([len(p) for p in paths])][1:]
+    all_ancestors[s] = path
+
+  return all_ancestors
 
 def get_ancestors(synsets):
   """Create a set consisting of all and only the ancestors of leaves.

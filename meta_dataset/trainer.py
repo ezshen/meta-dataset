@@ -28,6 +28,7 @@ import os
 
 from absl import logging
 import gin.tf
+from meta_dataset import graphfinetune_learner
 from meta_dataset import learner
 from meta_dataset.data import dataset_spec as dataset_spec_lib
 from meta_dataset.data import learning_spec
@@ -63,12 +64,13 @@ if not ENABLE_DATA_OPTIMIZATIONS:
 NAME_TO_LEARNER = {
     'Baseline': learner.BaselineLearner,
     'BaselineFinetune': learner.BaselineFinetuneLearner,
+    'GraphFinetune': graphfinetune_learner.GraphFinetuneLearner,
     'MatchingNet': learner.MatchingNetworkLearner,
     'PrototypicalNet': learner.PrototypicalNetworkLearner,
     'MAML': learner.MAMLLearner,
     'RelationNet': learner.RelationNetworkLearner,
 }
-BATCH_LEARNER_NAMES = ['Baseline', 'BaselineFinetune']
+BATCH_LEARNER_NAMES = ['Baseline', 'BaselineFinetune', 'GraphFinetune']
 EPISODIC_LEARNER_NAMES = [
     'MatchingNet', 'PrototypicalNet', 'MAML', 'RelationNet'
 ]
