@@ -55,6 +55,8 @@ from six.moves import range
 import six.moves.cPickle as pkl
 import tensorflow as tf
 
+
+import sys
 # Datasets in the same order as reported in the article.
 # 'ilsvrc_2012_data_root' is already defined in imagenet_specification.py.
 tf.flags.DEFINE_string(
@@ -1720,6 +1722,9 @@ class FungiConverter(DatasetConverter):
       write_tfrecord_from_image_files(class_paths, class_id, class_records_path)
 
 
+
+
+
 class MiniImageNetConverter(DatasetConverter):
   """Prepares MiniImageNet as required to integrate it in the benchmark.
 
@@ -1753,7 +1758,6 @@ class MiniImageNetConverter(DatasetConverter):
 
   def create_dataset_specification_and_records(self):
     """Implements DatasetConverter.create_dataset_specification_and_records."""
-
     splits = self.get_splits()
     # Get the names of the classes assigned to each split
     train_classes = splits['train']
@@ -1764,6 +1768,7 @@ class MiniImageNetConverter(DatasetConverter):
     self.classes_per_split[learning_spec.Split.VALID] = len(valid_classes)
     self.classes_per_split[learning_spec.Split.TEST] = len(test_classes)
 
+    all_classes = []
     all_names = []
     for classes, split in zip([train_classes, valid_classes, test_classes],
                               ['train', 'val', 'test']):
@@ -1777,6 +1782,7 @@ class MiniImageNetConverter(DatasetConverter):
 
       for class_id, class_name in zip(classes, names):
         logging.info('Creating record class %d', class_id)
+        all_classes.append(class_id)
         class_records_path = os.path.join(self.records_path,
                                           self.file_pattern.format(class_id))
         self.class_names[class_id] = class_name
@@ -1791,13 +1797,46 @@ class MiniImageNetConverter(DatasetConverter):
           buf.seek(0)
           write_example(buf.getvalue(), class_id, writer)
         writer.close()
+    sampling_graph = imagenet_specification.create_sampling_graph_from_wn_ids(all_names)
+    ancestor_synsets = imagenet_specification.get_ordered_ancestors(sampling_graph)
 
-    # use full imagenet ancestor synset mapping
-    with tf.io.gfile.GFile(os.path.join(self.records_path, 'imagenet_ancestors_synsets.json')) as f:
-      imagenet_ancestors = json.load(f)
-    ancestors = {n:imagenet_ancestors[n] for n in all_names}
-    ancestors_labels = convert_ancestors(ancestors, len(all_names))
-    with tf.io.gfile.GFile(os.path.join(self.records_path, 'ancestors_synsets.json'), 'w') as f:
-      json.dump(ancestors, f)
-    with tf.io.gfile.GFile(os.path.join(self.records_path, 'ancestors.json'), 'w') as f:
-      json.dump(ancestors_labels, f)
+    # create mapping from node wn_ids to node ids
+    node_to_id = {v: k for k, v in self.class_names.items()}
+    node_id = all_classes[-1] + 1 # assume classes are assigned sequentially
+    for synset in sampling_graph:
+      if synset.wn_id not in node_to_id:
+        node_to_id.update({synset.wn_id: node_id})
+        node_id += 1
+
+    # create graph distance matrix
+    graph_dists = np.zeros((len(all_classes), len(all_classes)), dtype=np.int32) - 1
+    for start in all_names:
+      start_synset = imagenet_specification.get_synset_by_wnid(start, sampling_graph)
+      dists = imagenet_specification.bfs_dists(start_synset)
+      for end in all_names:
+        graph_dists[node_to_id[start]][node_to_id[end]] = dists[end]
+    assert not np.where(graph_dists == -1)[0] # should be true because our subgraph is fully connected
+    np.set_printoptions(threshold=sys.maxsize)
+    print(graph_dists)
+    print(graph_dists - graph_dists.T)
+    # assert np.allclose(graph_dists, graph_dists.T)
+    graph_dists = np.minimum(graph_dists, graph_dists.T) # todo fix graph_dists should be symmetric, but vary for high distances
+
+    for node in sampling_graph:
+      for p in node.parents:
+        if node not in p.children:
+          print("node not in parent's children!")
+      for c in node.children:
+        if node not in c.parents:
+          print("node not in children's parents!")
+
+    with tf.compat.v1.gfile.GFile(os.path.join(self.records_path, 'graph_dists.tsv'), 'w') as f:
+      np.savetxt(f, graph_dists, delimiter='\t')
+
+    ancestors_wn_ids = {node.wn_id: [a.wn_id for a in ancestors_] for node, ancestors_ in ancestor_synsets.items()}
+    with tf.compat.v1.gfile.GFile(os.path.join(self.records_path, 'ancestor_wn_ids.json'), 'w') as f:
+      json.dump(ancestors_wn_ids, f)
+
+    ancestor_ids = {node_to_id[node]: [node_to_id[a] for a in ancestors_] for node, ancestors_ in ancestors_wn_ids.items()}
+    with tf.compat.v1.gfile.GFile(os.path.join(self.records_path, 'ancestor_ids.json'), 'w') as f:
+      json.dump(ancestor_ids, f)

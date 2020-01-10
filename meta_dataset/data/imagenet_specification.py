@@ -319,6 +319,37 @@ def create_sampling_graph(synsets, root=None):
   nodes = collapse(nodes)
   return nodes
 
+def create_sampling_graph_from_wn_ids(wn_ids):
+  """Create a sampling graph where the leaves are wnet ids. Used for MiniImagenet."""
+  # Create Synsets for all ImageNet synsets (82115 in total).
+  data_root = FLAGS.ilsvrc_2012_data_root
+  synsets = {}
+  path_to_words = FLAGS.path_to_words
+  if not path_to_words:
+    path_to_words = os.path.join(data_root, 'words.txt')
+  with tf.io.gfile.GFile(path_to_words) as f:
+    for line in f:
+      wn_id, words = line.rstrip().split('\t')
+      synsets[wn_id] = Synset(wn_id, words, set(), set())
+
+  # Populate the parents / children arrays of these Synsets.
+  path_to_is_a = FLAGS.path_to_is_a
+  if not path_to_is_a:
+    path_to_is_a = os.path.join(data_root, 'wordnet.is_a.txt')
+  with tf.io.gfile.GFile(path_to_is_a, 'r') as f:
+    for line in f:
+      parent, child = line.rstrip().split(' ')
+      synsets[parent].children.add(synsets[child])
+      synsets[child].parents.add(synsets[parent])
+
+  synsets = [synsets[wnid] for wnid in wn_ids]
+  assert len(wn_ids) == len(synsets)
+
+  # Get the graph of all and only the ancestors of the wn_ids.
+  sampling_graph = create_sampling_graph(synsets)
+
+  return sampling_graph
+
 
 def propose_valid_test_roots(spanning_leaves,
                              margin=50,
@@ -698,6 +729,29 @@ def get_upward_paths_from(start, end=None):
       start_to_end_paths = [[start] + p_path for p_path in p_to_end_paths]
       paths.extend(start_to_end_paths)
   return paths
+
+def bfs_dists(start):
+  """Finds the shortest distance from start to end using BFS.
+
+  Args:
+    start: A Synset.
+    end: A Synset.
+
+  Returns:
+    A list containing the shortest path.
+  """
+  queue = [start]
+  dists = {start.wn_id: 0} # dist from start to wnet id
+
+  while queue:
+    curr = queue.pop()
+    for neighbor in curr.parents + curr.children:
+      if neighbor.wn_id not in dists:
+        dists[neighbor.wn_id] = dists[curr.wn_id] + 1
+        queue.append(neighbor)
+
+  return dists
+
 
 
 def find_lowest_common_in_paths(path_a, path_b):
