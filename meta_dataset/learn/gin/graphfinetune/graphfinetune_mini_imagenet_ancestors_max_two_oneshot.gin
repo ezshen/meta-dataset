@@ -8,15 +8,15 @@ LearnerConfig.pretrained_source = 'scratch'
 
 BaselineLearner.use_weight_norm = False
 BaselineLearner.cosine_classifier = False
-BaselineLearner.cosine_logits_multiplier = 10
 
-GraphFinetuneLearner.num_finetune_steps = 200
+GraphFinetuneLearner.num_finetune_steps = 100
 GraphFinetuneLearner.finetune_lr = .01
 GraphFinetuneLearner.finetune_with_adam = False
 GraphFinetuneLearner.finetune_all_layers = False
 
-GraphFinetuneLearner.num_nodes = 264
-GraphFinetuneLearner.ancestors_filepath = '/mnt/disks/0/records/mini_imagenet/ancestors.json'
-GraphFinetuneLearner.max_ancestors = 0
+GraphFinetuneLearner.num_nodes = 158
 
-GraphFinetuneLearner.debug_log = True
+GraphFinetuneLearner.loss_type = 'ancestors'
+GraphFinetuneLearner.ancestors_filepath = '/mnt/disks/0/records/mini_imagenet/ancestor_ids.json'
+GraphFinetuneLearner.max_ancestors = 2
+GraphFinetuneLearner.graph_loss_scale = 1

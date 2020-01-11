@@ -12,5 +12,3 @@ BaselineFinetuneLearner.finetune_lr = 0.01
 BaselineFinetuneLearner.finetune_with_adam = False
 BaselineLearner.use_weight_norm = False
 BaselineFinetuneLearner.finetune_all_layers = False
-
-BaselineFinetuneLearner.debug_log = True
