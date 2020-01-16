@@ -70,17 +70,21 @@ class GraphFinetuneLearner(learner.BaselineLearner):
                weight_decay,
                num_finetune_steps,
                finetune_lr,
+               finetune_momentum,
+               finetune_weight_decay,
+               finetune_cosine_logits_multiplier,
                num_nodes,
                max_ancestors,
-               max_graph_dist,
                ancestors_filepath,
-               graph_dists_filepath,
-               proto_init,
+               sims_filepath,
+               use_proto_init,
                loss_type,
                graph_loss_scale,
+               sims_mult,
                debug_log=False,
                finetune_all_layers=False,
-               finetune_with_adam=False):
+               finetune_with_adam=False,
+               finetune_with_sgd=False):
     """Initializes a baseline learner.
 
     Args:
@@ -107,14 +111,20 @@ class GraphFinetuneLearner(learner.BaselineLearner):
 
     self.num_finetune_steps = num_finetune_steps
     self.finetune_lr = finetune_lr
+    self.finetune_momentum = finetune_momentum
+    self.finetune_weight_decay = finetune_weight_decay
+    self.finetune_cosine_logits_multiplier = finetune_cosine_logits_multiplier
     self.debug_log = debug_log
     self.finetune_all_layers = finetune_all_layers
     self.finetune_with_adam = finetune_with_adam
-    self.proto_init = proto_init
+    self.use_proto_init = use_proto_init
     self.loss_type = loss_type
 
     if finetune_with_adam:
       self.finetune_opt = tf.train.AdamOptimizer(self.finetune_lr)
+
+    if finetune_with_sgd:
+      self.finetune_opt = tf.keras.optimizers.SGD(learning_rate=self.finetune_lr, momentum=self.finetune_momentum, decay=self.finetune_weight_decay)
 
     self.max_ancestors = max_ancestors
     self.num_nodes = num_nodes
@@ -134,14 +144,14 @@ class GraphFinetuneLearner(learner.BaselineLearner):
           ancestor_lookup.append(ancestors[:self.max_ancestors])
       self.ancestor_lookup = tf.constant(ancestor_lookup, dtype=tf.int64)
 
-    if self.loss_type == 'graph_dists':
+    if self.loss_type == 'reward_shaping':
       # load graph distances
-      with tf.io.gfile.GFile(graph_dists_filepath) as f:
-        graph_dists = np.genfromtxt(f, delimiter='\t')
-      self.graph_dists = tf.constant(graph_dists, dtype=tf.int64)
+      with tf.io.gfile.GFile(sims_filepath) as f:
+        sims = np.genfromtxt(f, delimiter='\t')
+      self.sims = tf.constant(sims, dtype=tf.int64)
 
     self.graph_loss_scale = graph_loss_scale
-    self.max_graph_dist = max_graph_dist
+    self.sims_mult = sims_mult
     # Note: the weight_decay value provided here overrides the value gin might
     # have for BaselineLearner's own weight_decay.
     super(GraphFinetuneLearner,
@@ -182,14 +192,20 @@ class GraphFinetuneLearner(learner.BaselineLearner):
       # Always maps to a space whose dimensionality is the number of classes
       # at meta-training time.
       embedding_dims = self.train_embeddings.get_shape().as_list()[-1]
-      node_embeddings = learner.weight_variable([embedding_dims, self.num_nodes])
-      node_bias = learner.bias_variable([self.num_nodes])
-      self.node_embeddings = node_embeddings
-      self.node_bias = node_bias
+
+      self.node_embeddings = learner.weight_variable([embedding_dims, self.num_nodes])
+      self.node_bias = learner.bias_variable([self.num_nodes])
 
     if self.is_training:
       logits, node_logits = self.forward_pass_fc(self.train_embeddings)
     else:
+      # if self.use_proto_init:
+      #   with tf.variable_scope('fc', reuse=tf.AUTO_REUSE):
+      #     prototypes = learner.compute_prototypes(self.train_embeddings, self.data.train_labels)
+      #     self.node_embeddings = proto_fc_weights(
+      #         prototypes, zero_pad_to_max_way=True)
+      #     self.node_bias = proto_fc_bias(
+      #         prototypes, zero_pad_to_max_way=True)
       # ------------------------ Finetuning -------------------------------
       # Possibly make copies of embedding variables, if they will get modified.
       # This is for making temporary-only updates to the embedding network
@@ -203,7 +219,7 @@ class GraphFinetuneLearner(learner.BaselineLearner):
       # A Variable for the weights of the fc layer, a Variable for the bias of the
       # fc layer, and a list of operations (possibly empty) that copies them.
       (self.node_embeddings_finetune, self.node_bias_finetune, fc_vars_copy_ops) = learner.get_fc_vars_copy_ops(
-          node_embeddings, node_bias, make_copies=True)
+          self.node_embeddings, self.node_bias, make_copies=True)
       fc_vars_copy_op = tf.group(*fc_vars_copy_ops)
 
       # Compute the initial training loss (only for printing purposes). This
@@ -216,7 +232,8 @@ class GraphFinetuneLearner(learner.BaselineLearner):
       # Decide which variables to finetune.
       fc_vars, vars_to_finetune = [], []
       vars_to_finetune.append(self.node_embeddings_finetune)
-      vars_to_finetune.append(self.node_bias_finetune)
+      if not self.cosine_classifier:
+        vars_to_finetune.append(self.node_bias_finetune)
       if self.finetune_all_layers:
         vars_to_finetune.extend(self.embedding_vars)
       self.vars_to_finetune = vars_to_finetune
@@ -375,7 +392,7 @@ class GraphFinetuneLearner(learner.BaselineLearner):
                                         self.cosine_classifier,
                                         self.cosine_logits_multiplier,
                                         self.use_weight_norm,
-                                        self.proto_init,
+                                        self.use_proto_init,
                                         self.node_embeddings,
                                         self.node_bias)
       return logits, node_logits
@@ -391,9 +408,9 @@ class GraphFinetuneLearner(learner.BaselineLearner):
                                         label_to_id,
                                         self.num_nodes,
                                         self.cosine_classifier,
-                                        self.cosine_logits_multiplier,
+                                        self.finetune_cosine_logits_multiplier,
                                         self.use_weight_norm,
-                                        self.proto_init,
+                                        self.use_proto_init,
                                         self.node_embeddings_finetune,
                                         self.node_bias_finetune)
     return logits, node_logits
@@ -430,14 +447,15 @@ class GraphFinetuneLearner(learner.BaselineLearner):
       onehot_labels = tf.one_hot(labels, num_classes)
       loss = tf.losses.softmax_cross_entropy(
           onehot_labels=onehot_labels, logits=logits)
-    elif self.loss_type == "graph_dists":
-      graph_dists = tf.gather(self.graph_dists, class_ids)
-      num_all_classes = graph_dists.shape[-1]
-      all_class_logits = tf.gather(node_logits, tf.range(num_all_classes), axis=-1)
-      mask = tf.cast(tf.greater(graph_dists, self.max_graph_dist), tf.float64) * 1e4
-      graph_labels = tf.minimum((self.max_graph_dist + 1) / graph_dists, 1) - mask
-      graph_labels = tf.nn.softmax(graph_labels)
-      loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=graph_labels, logits=all_class_logits))
+    elif self.loss_type == "reward_shaping":
+      if self.is_training:
+        sims = tf.gather(self.sims, class_ids)
+        graph_labels = tf.nn.softmax(sims * self.sims_mult)
+        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=graph_labels, logits=all_class_logits))
+      else:
+        onehot_labels = tf.one_hot(labels, num_classes)
+        loss = tf.losses.softmax_cross_entropy(
+            onehot_labels=onehot_labels, logits=logits)
     elif self.loss_type == "ancestors":
       onehot_labels = tf.one_hot(labels, num_classes)
       class_loss = tf.losses.softmax_cross_entropy(
@@ -480,8 +498,6 @@ class GraphFinetuneLearner(learner.BaselineLearner):
   def _compute_accuracy(self, logits, labels):
     """Computes the accuracy on the given episode."""
     predictions = tf.cast(tf.argmax(logits, 1), tf.int32)
-    # print_op = tf.print(['logits', logits, 'predictions', predictions, 'logits.shape', logits.shape, 'predictions.shape', predictions.shape, 'labels', labels])
-    # with tf.control_dependencies([print_op]):
     correct = tf.equal(labels, predictions)
     accuracy = tf.reduce_mean(tf.cast(correct, tf.float32))
     return accuracy

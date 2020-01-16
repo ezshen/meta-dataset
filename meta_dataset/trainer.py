@@ -256,11 +256,13 @@ class LearnerConfig(object):
       checkpoint_for_eval,
       embedding_network,
       learning_rate,
+      momentum,
       decay_learning_rate,
       decay_every,
       decay_rate,
       experiment_name,
       pretrained_source,
+      train_with_sgd=False,
   ):
     # pyformat: disable
     """Initializes a LearnerConfig.
@@ -301,11 +303,13 @@ class LearnerConfig(object):
     self.checkpoint_for_eval = checkpoint_for_eval
     self.embedding_network = embedding_network
     self.learning_rate = learning_rate
+    self.momentum = momentum
     self.decay_learning_rate = decay_learning_rate
     self.decay_every = decay_every
     self.decay_rate = decay_rate
     self.experiment_name = experiment_name
     self.pretrained_source = pretrained_source
+    self.train_with_sgd = train_with_sgd
 
 
 @gin.configurable
@@ -332,7 +336,7 @@ class Trainer(object):
       eval_episode_config,
       learn_config,
       learner_config,
-      data_config,
+      data_config
   ):
     """Initializes a Trainer.
 
@@ -508,7 +512,10 @@ class Trainer(object):
             decay_rate=self.learner_config.decay_rate,
             staircase=True)
       tf.summary.scalar('learning_rate', learning_rate)
-      self.optimizer = tf.train.AdamOptimizer(learning_rate)
+      if self.learner_config.train_with_sgd:
+        self.optimizer = tf.train.MomentumOptimizer(learning_rate, self.learner_config.momentum)
+      else:
+        self.optimizer = tf.train.AdamOptimizer(learning_rate)
       self.train_op = self.get_train_op(global_step)
 
     vars_to_restore = []

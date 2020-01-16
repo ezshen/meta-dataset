@@ -1,0 +1,34 @@
+include 'meta_dataset/learn/gin/setups/mini_imagenet.gin'
+EpisodeDescriptionConfig.num_support = 1  # Change 5-shot to 1-shot.
+include 'meta_dataset/learn/gin/models/graphfinetune_config.gin'
+
+LearnConfig.validate_every = 500
+
+LearnerConfig.embedding_network = 'resnet'
+LearnerConfig.learning_rate = .1
+LearnerConfig.decay_learning_rate = True
+LearnerConfig.decay_every = 7500
+LearnerConfig.decay_rate = 0.1
+LearnerConfig.train_with_sgd = True
+LearnerConfig.momentum = .9
+
+DataConfig.image_height = 84
+LearnerConfig.pretrained_source = 'scratch'
+
+BaselineLearner.cosine_classifier = True
+BaselineLearner.cosine_logits_multiplier = 30
+
+GraphFinetuneLearner.num_finetune_steps = 100
+GraphFinetuneLearner.finetune_with_sgd = True
+GraphFinetuneLearner.finetune_lr = .01
+GraphFinetuneLearner.finetune_cosine_logits_multiplier = 5
+GraphFinetuneLearner.finetune_momentum = 0.9
+GraphFinetuneLearner.finetune_weight_decay = 0.001
+GraphFinetuneLearner.finetune_with_adam = False
+GraphFinetuneLearner.finetune_all_layers = False
+weight_decay = 1e-3
+GraphFinetuneLearner.weight_decay = %weight_decay
+GraphFinetuneLearner.transductive_batch_norm = True
+
+GraphFinetuneLearner.num_nodes = 158
+GraphFinetuneLearner.loss_type = 'cross_entropy'

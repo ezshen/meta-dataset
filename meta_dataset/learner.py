@@ -1397,7 +1397,7 @@ def linear_classifier_forward_pass(embeddings, w_fc, b_fc, cosine_classifier,
 
 
 def linear_classifier_logits(embeddings, num_classes, cosine_classifier,
-                             cosine_logits_multiplier, use_weight_norm):
+                             cosine_logits_multiplier, use_weight_norm, use_proto_init=False, labels=None):
   """Forward pass through a linear classifier, possibly a cosine classifier."""
 
   # A variable to keep track of whether the initialization has already happened.
@@ -1468,6 +1468,12 @@ def linear_classifier_logits(embeddings, num_classes, cosine_classifier,
     logits = linear_classifier_forward_pass(embeddings, w_fc, b_fc,
                                             cosine_classifier,
                                             cosine_logits_multiplier, False)
+
+  if use_proto_init: # override the variables
+    onehot_train_labels = tf.one_hot(labels, num_classes)
+    prototypes = compute_prototypes(embeddings, onehot_train_labels)
+    w_fc = tf.transpose(prototypes)
+
   return logits
 
 
@@ -1676,6 +1682,7 @@ class BaselineFinetuneLearner(BaselineLearner):
                weight_decay,
                num_finetune_steps,
                finetune_lr,
+               use_proto_init,
                debug_log=False,
                finetune_all_layers=False,
                finetune_with_adam=False):
@@ -1707,6 +1714,7 @@ class BaselineFinetuneLearner(BaselineLearner):
     self.debug_log = debug_log
     self.finetune_all_layers = finetune_all_layers
     self.finetune_with_adam = finetune_with_adam
+    self.use_proto_init = use_proto_init
 
     if finetune_with_adam:
       self.finetune_opt = tf.train.AdamOptimizer(self.finetune_lr)
@@ -1888,7 +1896,7 @@ class BaselineFinetuneLearner(BaselineLearner):
       logits = linear_classifier_logits(embedding, MAX_WAY,
                                         self.cosine_classifier,
                                         self.cosine_logits_multiplier,
-                                        self.use_weight_norm)
+                                        self.use_weight_norm, self.use_proto_init, self.data.train_labels)
     return logits
 
   def _classification_loss(self, logits, labels, num_classes):

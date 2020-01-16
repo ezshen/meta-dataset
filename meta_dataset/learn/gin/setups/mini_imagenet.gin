@@ -7,3 +7,19 @@ Trainer.data_config = @DataConfig()
 Trainer.train_episode_config = @train/EpisodeDescriptionConfig()
 Trainer.eval_episode_config = @EpisodeDescriptionConfig()
 DataConfig.image_height = 84
+
+LearnerConfig.decay_learning_rate = True
+
+BatchDataAugmentation.enable_mini_imagenet_preprocessing = True
+BatchDataAugmentation.pad_amount = 8
+BatchDataAugmentation.enable_jitter = False
+BatchDataAugmentation.jitter_amount = 0.4
+BatchDataAugmentation.enable_gaussian_noise = False
+BatchDataAugmentation.gaussian_noise_std = 0.0
+
+SupportSetDataAugmentation.enable_mini_imagenet_preprocessing = True
+SupportSetDataAugmentation.pad_amount = 8
+SupportSetDataAugmentation.enable_jitter = False
+SupportSetDataAugmentation.jitter_amount = 0.4
+SupportSetDataAugmentation.enable_gaussian_noise = False
+SupportSetDataAugmentation.gaussian_noise_std = 0.0

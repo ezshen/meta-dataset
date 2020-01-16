@@ -203,23 +203,40 @@ def process_example(example_string, image_size, data_augmentation=None):
           'label': tf.FixedLenFeature([], tf.int64)
       })['image']
   image_decoded = tf.image.decode_jpeg(image_string, channels=3)
-  image_resized = tf.image.resize_images(
-      image_decoded, [image_size, image_size],
-      method=tf.image.ResizeMethod.BILINEAR,
-      align_corners=True)
-  image = 2 * (image_resized / 255.0 - 0.5)  # Rescale to [-1, 1].
+  image = tf.cast(image_decoded, tf.float32)
+  mean=tf.constant([[[0.485, 0.456, 0.406]]], tf.float32)
+  std=tf.constant([[[0.229, 0.224, 0.225]]], tf.float32)
+  if data_augmentation.enable_mini_imagenet_preprocessing:
+    print("MINI IMAGENET AUGMENTATION")
+    pad = data_augmentation.pad_amount
+    paddings = tf.constant([[pad, pad], [pad, pad], [0, 0]])
+    image = tf.pad(image, paddings, 'CONSTANT')
+    image = tf.image.random_crop(image, [image_size, image_size, 3])
+    image = tf.image.random_saturation(image, max(0, 1 - data_augmentation.jitter_amount), 1 + data_augmentation.jitter_amount)
+    image = tf.image.random_contrast(image, max(0, 1 - data_augmentation.jitter_amount), 1 + data_augmentation.jitter_amount)
+    image = tf.image.random_brightness(image, max(0, 1 - data_augmentation.jitter_amount), 1 + data_augmentation.jitter_amount)
+    image = tf.image.random_flip_left_right(image)
+    # image = tf.image.per_image_standardization(image)
+  else:
+    image_resized = tf.image.resize_images(
+        image_decoded, [image_size, image_size],
+        method=tf.image.ResizeMethod.BILINEAR,
+        align_corners=True)
+    # image = tf.image.per_image_standardization(image)
+    # image = 2 * (image_resized / 255.0 - 0.5)  # Rescale to [-1, 1].
 
-  if data_augmentation is not None:
-    if data_augmentation.enable_gaussian_noise:
-      image = image + tf.random_normal(
-          tf.shape(image)) * data_augmentation.gaussian_noise_std
+    if data_augmentation is not None:
+      if data_augmentation.enable_gaussian_noise:
+        image = image + tf.random_normal(
+            tf.shape(image)) * data_augmentation.gaussian_noise_std
 
-    if data_augmentation.enable_jitter:
-      j = data_augmentation.jitter_amount
-      paddings = tf.constant([[j, j], [j, j], [0, 0]])
-      image = tf.pad(image, paddings, 'REFLECT')
-      image = tf.image.random_crop(image, [image_size, image_size, 3])
+      if data_augmentation.enable_jitter:
+        j = data_augmentation.jitter_amount
+        paddings = tf.constant([[j, j], [j, j], [0, 0]])
+        image = tf.pad(image, paddings, 'REFLECT')
+        image = tf.image.random_crop(image, [image_size, image_size, 3])
 
+  image = (image - mean) / std
   return image
 
 

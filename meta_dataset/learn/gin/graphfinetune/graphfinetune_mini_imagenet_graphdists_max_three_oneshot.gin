@@ -18,4 +18,4 @@ GraphFinetuneLearner.num_nodes = 158
 
 GraphFinetuneLearner.loss_type = 'graph_dists'
 GraphFinetuneLearner.graph_dists_filepath = '/mnt/disks/0/records/mini_imagenet/graph_dists.tsv'
-GraphFinetuneLearner.max_graph_dist= 3
+GraphFinetuneLearner.max_graph_dist = 3

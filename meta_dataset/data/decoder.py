@@ -56,24 +56,40 @@ class ImageDecoder(object):
         })['image']
     image_decoded = tf.image.decode_image(image_string, channels=3)
     image_decoded.set_shape([None, None, 3])
-    image_resized = tf.image.resize_images(
-        image_decoded, [self.image_size, self.image_size],
-        method=tf.image.ResizeMethod.BILINEAR,
-        align_corners=True)
-    image_resized = tf.cast(image_resized, tf.float32)
-    image = 2 * (image_resized / 255.0 - 0.5)  # Rescale to [-1, 1].
 
-    if self.data_augmentation is not None:
-      if self.data_augmentation.enable_gaussian_noise:
-        image = image + tf.random_normal(
-            tf.shape(image)) * self.data_augmentation.gaussian_noise_std
+    if self.data_augmentation.enable_mini_imagenet_preprocessing:
+      # mean_pix = [x/255.0 for x in [120.39586422,  115.59361427, 104.54012653]]
+      # std_pix = [x/255.0 for x in [70.68188272,  68.27635443,  72.54505529]]
+      print("MINI IMAGENET AUGMENTATION")
+      pad = self.data_augmentation.pad_amount
+      paddings = tf.constant([[pad, pad], [pad, pad], [0, 0]])
+      image = tf.image.pad(image, paddings, 'CONSTANT')
+      image = tf.image.random_crop(image, [self.image_size, self.image_size, 3])
+      image = tf.image.random_saturation(image, [max(0, 1 - self.data_augmentation.jitter_amount), 1 + self.data_augmentation.jitter_amount])
+      image = tf.image.random_contrast(image, [max(0, 1 - self.data_augmentation.jitter_amount), 1 + self.data_augmentation.jitter_amount])
+      image = tf.image.random_brightness(image, [max(0, 1 - self.data_augmentation.jitter_amount), 1 + self.data_augmentation.jitter_amount])
+      image = tf.image.random_flip_left_right(image)
+      image = tf.image.per_image_standardization(image)
+    else:
+      image_resized = tf.image.resize_images(
+          image_decoded, [self.image_size, self.image_size],
+          method=tf.image.ResizeMethod.BILINEAR,
+          align_corners=True)
+      image_resized = tf.cast(image_resized, tf.float32)
+      image = 2 * (image_resized / 255.0 - 0.5)  # Rescale to [-1, 1].
 
-      if self.data_augmentation.enable_jitter:
-        j = self.data_augmentation.jitter_amount
-        paddings = tf.constant([[j, j], [j, j], [0, 0]])
-        image = tf.pad(image, paddings, 'REFLECT')
-        image = tf.image.random_crop(image,
-                                     [self.image_size, self.image_size, 3])
+      if self.data_augmentation is not None:
+        if self.data_augmentation.enable_gaussian_noise:
+          image = image + tf.random_normal(
+              tf.shape(image)) * self.data_augmentation.gaussian_noise_std
+
+        if self.data_augmentation.enable_jitter:
+          j = self.data_augmentation.jitter_amount
+          paddings = tf.constant([[j, j], [j, j], [0, 0]])
+          image = tf.pad(image, paddings, 'REFLECT')
+          image = tf.image.random_crop(image,
+                                       [self.image_size, self.image_size, 3])
+
 
     return image
 

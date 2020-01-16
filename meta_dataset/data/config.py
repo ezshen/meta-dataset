@@ -60,18 +60,20 @@ class DataAugmentation(object):
   """Configurations for performing data augmentation."""
 
   def __init__(self, enable_jitter, jitter_amount, enable_gaussian_noise,
-               gaussian_noise_std):
+               gaussian_noise_std, enable_mini_imagenet_preprocessing=False, pad_amount=False):
     """Initialize a DataAugmentation.
 
     Args:
-      enable_jitter: bool whether to use image jitter (pad each image using
-        reflection along x and y axes and then random crop).
-      jitter_amount: amount (in pixels) to pad on all sides of the image.
+      enable_jitter: bool whether to use image jitter.
+      pad_amount: amount (in pixels) to pad on all sides of the image.
+      jitter_
       enable_gaussian_noise: bool whether to use additive Gaussian noise.
       gaussian_noise_std: Standard deviation of the Gaussian distribution.
     """
+    self.enable_mini_imagenet_preprocessing = enable_mini_imagenet_preprocessing
     self.enable_jitter = enable_jitter
     self.jitter_amount = jitter_amount
+    self.pad_amount = pad_amount
     self.enable_gaussian_noise = enable_gaussian_noise
     self.gaussian_noise_std = gaussian_noise_std
 

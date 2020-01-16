@@ -10,11 +10,15 @@ weight_decay = 1e-4
 GraphFinetuneLearner.weight_decay = %weight_decay
 GraphFinetuneLearner.num_finetune_steps = 5
 GraphFinetuneLearner.finetune_lr = 1e-4
+GraphFinetuneLearner.finetune_momentum = 0
+GraphFinetuneLearner.finetune_weight_decay = 0
 GraphFinetuneLearner.finetune_all_layers = False
+GraphFinetuneLearner.finetune_with_sgd = False
 GraphFinetuneLearner.finetune_with_adam = False
-GraphFinetuneLearner.proto_init = False
+GraphFinetuneLearner.use_proto_init = False
 GraphFinetuneLearner.loss_type = ''
 GraphFinetuneLearner.num_nodes = 0
+GraphFinetuneLearner.finetune_cosine_logits_multiplier = 10
 
 BaselineLearner.use_weight_norm = False
 BaselineLearner.cosine_classifier = False
@@ -26,3 +30,4 @@ GraphFinetuneLearner.graph_loss_scale = 0
 
 GraphFinetuneLearner.graph_dists_filepath = None
 GraphFinetuneLearner.max_graph_dist = 0
+GraphFinetuneLearner.graph_dist_mult = 1

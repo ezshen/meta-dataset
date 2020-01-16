@@ -1817,8 +1817,6 @@ class MiniImageNetConverter(DatasetConverter):
         graph_dists[node_to_id[start]][node_to_id[end]] = dists[end]
     assert not np.where(graph_dists == -1)[0] # should be true because our subgraph is fully connected
     np.set_printoptions(threshold=sys.maxsize)
-    print(graph_dists)
-    print(graph_dists - graph_dists.T)
     # assert np.allclose(graph_dists, graph_dists.T)
     graph_dists = np.minimum(graph_dists, graph_dists.T) # todo fix graph_dists should be symmetric, but vary for high distances
 
